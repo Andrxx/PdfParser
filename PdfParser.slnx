@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ApiGateway/ApiGateway.csproj" />
+  <Project Path="CommonModels/CommonModels.csproj" />
+  <Project Path="PdfParser/PdfParser.csproj" />
+  <Project Path="Worker/Worker.csproj" />
+</Solution>

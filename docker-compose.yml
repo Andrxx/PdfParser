@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # 1. Сервер базы данных PostgreSQL
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: pdf_processor_db
+    environment:
+      POSTGRES_USER: pdf_user
+      POSTGRES_PASSWORD: pdf_password
+      POSTGRES_DB: pdf_processing_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  # 2. Брокер сообщений RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: pdf_processor_queue
+    ports:
+      - "5672:5672"   # Порт для подключения C#-кода
+      - "15672:15672" # Порт для веб-интерфейса управления
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    restart: always
+
+volumes:
+  pgdata:
