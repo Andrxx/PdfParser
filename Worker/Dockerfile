@@ -2,15 +2,21 @@
 
 # Этот этап используется при запуске из VS в быстром режиме (по умолчанию для конфигурации отладки)
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS base
+USER root
+# Устанавливаем ICU локали, необходимые .NET 10 и библиотеке PdfPig в Linux
+RUN apt-get update && apt-get install -y --no-install-recommends icu-devtools libicu-dev && rm -rf /var/lib/apt/lists/*
 USER $APP_UID
 WORKDIR /app
-
 
 # Этот этап используется для сборки проекта службы
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
+# КОПИРУЕМ ОБА ПРОЕКТА (Текущий и Общий) ДЛЯ СБОРКИ СВЯЗЕЙ
 COPY ["Worker/Worker.csproj", "Worker/"]
+COPY ["CommonModels/CommonModels.csproj", "CommonModels/"]
+
 RUN dotnet restore "./Worker/Worker.csproj"
 COPY . .
 WORKDIR "/src/Worker"

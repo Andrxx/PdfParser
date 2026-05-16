@@ -22,7 +22,7 @@ namespace ApiGateway.Controllers
             _context = context;
             _publishEndpoint = publishEndpoint;
             // Папка на сервере, где будут физически храниться загруженные PDF
-            _storagePath = Path.Combine(Directory.GetCurrentDirectory(), "UploadedFiles");
+            _storagePath = Path.Combine(AppContext.BaseDirectory, "UploadedFiles");
 
             if (!Directory.Exists(_storagePath))
             {
@@ -90,5 +90,53 @@ namespace ApiGateway.Controllers
 
             return Ok(documents);
         }
+
+        // ПОЛУЧЕНИЕ ТЕКСТОВОГО СОДЕРЖИМОГО PDF (GET: api/pdf/{id}/text)
+        [HttpGet("{id}/text")]
+        public async Task<IActionResult> GetDocumentText(Guid id)
+        {
+            // Запрашиваем из базы только нужные поля для оптимизации трафика
+            var document = await _context.Documents
+                .Select(d => new
+                {
+                    d.Id,
+                    d.Status,
+                    d.ExtractedText
+                })
+                .FirstOrDefaultAsync(d => d.Id == id);
+
+            if (document == null)
+            {
+                return NotFound(new { message = "Документ с указанным идентификатором не найден." });
+            }
+
+            if (document.Status == "Pending" || document.Status == "Processing")
+            {
+                return Ok(new
+                {
+                    status = document.Status,
+                    message = "Файл находится в очереди на обработку. Пожалуйста, повторите запрос позже."
+                });
+            }
+
+            // Если воркер завершил обработку со сбоем (например, PDF поврежден)
+            if (document.Status == "Failed")
+            {
+                return BadRequest(new
+                {
+                    status = document.Status,
+                    message = "Не удалось извлечь текст из данного файла.",
+                    error = document.ExtractedText // В случае ошибки здесь лежит текст исключения
+                });
+            }
+
+            return Ok(new
+            {
+                id = document.Id,
+                status = document.Status,
+                text = document.ExtractedText
+            });
+        }
+
     }
 }

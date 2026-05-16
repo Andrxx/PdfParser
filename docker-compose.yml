@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # 1. Сервер базы данных PostgreSQL
+  # 1. База данных
   postgres-db:
     image: postgres:16-alpine
     container_name: pdf_processor_db
@@ -15,17 +13,53 @@ services:
       - pgdata:/var/lib/postgresql/data
     restart: always
 
-  # 2. Брокер сообщений RabbitMQ
+  # 2. Очередь сообщений
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: pdf_processor_queue
     ports:
-      - "5672:5672"   # Порт для подключения C#-кода
-      - "15672:15672" # Порт для веб-интерфейса управления
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     restart: always
 
+  # 3. Сервис API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ApiGateway/Dockerfile
+    container_name: pdf_api_gateway
+    restart: always
+    ports:
+      - "5081:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres-db;Port=5432;Database=pdf_processing_db;Username=pdf_user;Password=pdf_password;
+      - ASPNETCORE_ENVIRONMENT=Development
+      - CLR_ICU_VERSION_OVERRIDE=74.2 # Явное указание версии ICU для стабильности .NET 10
+    depends_on:
+      - postgres-db
+      - rabbitmq
+
+  # 4. Сервис Background Worker
+  background-worker:
+    build:
+      context: .
+      dockerfile: Worker/Dockerfile
+    container_name: pdf_background_worker
+    restart: always
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres-db;Port=5432;Database=pdf_processing_db;Username=pdf_user;Password=pdf_password;
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    depends_on:
+      - postgres-db
+      - rabbitmq
+    volumes:
+      - shared-files:/app/UploadedFiles
+
 volumes:
   pgdata:
+  shared-files:

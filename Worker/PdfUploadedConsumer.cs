@@ -1,5 +1,5 @@
 ﻿using MassTransit;
-using Npgsql; // Для прямой быстрой работы с БД без таскания всего EF-контекста во Worker
+using Npgsql; 
 using CommonModels.Models;
 using System;
 using System.IO;
@@ -12,10 +12,12 @@ namespace Worker
     public class PdfUploadedConsumer : IConsumer<PdfUploadedEvent>
     {
         private readonly string _connectionString;
+        private readonly ILogger<PdfUploadedConsumer> _logger;  
 
-        public PdfUploadedConsumer(IConfiguration configuration)
+        public PdfUploadedConsumer(IConfiguration configuration, ILogger<PdfUploadedConsumer> logger)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection");
+            _logger = logger;
         }
 
         public async Task Consume(ConsumeContext<PdfUploadedEvent> context)
@@ -24,9 +26,12 @@ namespace Worker
 
             // 1. Обновляем статус в БД на "Processing"
             await UpdateDocumentStatus(message.DocumentId, "Processing", null);
+            // Пишем в консоль воркера
+            _logger.LogInformation(">>> [RabbitMQ] Получено сообщение о новом PDF. ID: {Id}", message.DocumentId);
 
             try
             {
+                _logger.LogInformation(">>> [PdfPig] Начинается извлечение текста из: {Path}", message.FilePath);
                 // 2. Проверяем, существует ли файл по указанному пути
                 if (!File.Exists(message.FilePath))
                 {
@@ -45,6 +50,8 @@ namespace Worker
 
                 // 4. Сохраняем результат в БД и ставим статус "Completed"
                 await UpdateDocumentStatus(message.DocumentId, "Completed", extractedText);
+                // Финальный лог 
+                _logger.LogInformation(">>> [Успех] Текст успешно извлечен и сохранен в PostgreSQL для ID: {Id}", message.DocumentId);
             }
             catch (Exception ex)
             {

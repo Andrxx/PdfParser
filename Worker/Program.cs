@@ -1,13 +1,3 @@
-//using MassTransit;
-//using Worker;
-
-//var builder = Host.CreateApplicationBuilder(args);
-//builder.Services.AddHostedService<PdfBackgroundWorker>();
-
-//var host = builder.Build();
-//host.Run();
-
-
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,21 +5,26 @@ using Microsoft.Extensions.Hosting;
 using Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
-
+//ПРИНУДИТЕЛЬНО РЕГИСТРИРУЕМ КОНФИГУРАЦИЮ (Решает проблему инициализации фабрики)
+builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 builder.Services.AddMassTransit(x =>
 {
-    // Регистрируем наш обработчик
     x.AddConsumer<PdfUploadedConsumer>();
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMQ:Host"] ?? "localhost", "/", h =>
+
+        string host = builder.Configuration["RabbitMQ:Host"] ?? "rabbitmq";
+        string user = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+        string pass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+
+        cfg.Host(host, "/", h =>
         {
-            h.Username(builder.Configuration["RabbitMQ:Username"] ?? "guest");
-            h.Password(builder.Configuration["RabbitMQ:Password"] ?? "guest");
+            h.Username(user);
+            h.Password(pass);
         });
 
-        // Автоматически настраивает эндпоинты для всех зарегистрированных Consumer'ов
+        // Автоматически связывает Consumer с очередью в RabbitMQ
         cfg.ConfigureEndpoints(context);
     });
 });
